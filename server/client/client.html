@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WebRTC Demo - Client</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      min-height: 100vh;
+      color: #333;
+      padding: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 600px;
+      width: 100%;
+    }
+    .header {
+      text-align: center;
+      color: white;
+      margin-bottom: 30px;
+    }
+    .header h1 { font-size: 2.5rem; margin-bottom: 8px; }
+    .header p { font-size: 1.1rem; opacity: 0.9; }
+    .panel {
+      background: white;
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+    .panel h2 {
+      font-size: 1.5rem;
+      margin-bottom: 16px;
+      color: #f5576c;
+    }
+    #status {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      background: #fff3e0;
+      color: #e65100;
+    }
+    #status.connected {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .log {
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 12px;
+      height: 250px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      border: 2px solid #ddd;
+      margin-bottom: 16px;
+    }
+    #log {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: transparent;
+      resize: none;
+      font-family: inherit;
+      font-size: inherit;
+    }
+    .control-group {
+      margin-bottom: 16px;
+    }
+    .control-group button {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 1rem;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .control-group button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+    }
+    .control-group button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .message-controls {
+      display: flex;
+      gap: 10px;
+    }
+    .message-controls input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 2px solid #ddd;
+      border-radius: 6px;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+    .message-controls input:focus {
+      outline: none;
+      border-color: #f5576c;
+    }
+    .message-controls input:disabled {
+      background: #f0f0f0;
+      opacity: 0.6;
+    }
+    .message-controls button {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .message-controls button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(245, 87, 108, 0.4);
+    }
+    .message-controls button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💬 WebRTC Client</h1>
+      <p>Connect to host and send/receive messages</p>
+    </div>
+    
+    <div class="panel">
+      <h2>Connection</h2>
+      <div id="status">🟡 Disconnected</div>
+      
+      <div class="control-group">
+        <button id="connect" type="button">Connect to Host</button>
+      </div>
+
+      <div class="control-group">
+        <label style="display:block;font-weight:600;margin-bottom:8px;">Your ID</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span id="myId" style="background:#fff;padding:6px 10px;border-radius:6px;color:#333;user-select:all">—</span>
+          <button id="copyId" type="button">Copy ID</button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label style="display:block;font-weight:600;margin-bottom:8px;">Host ID (paste or leave blank to auto-pick)</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="hostIdInput" placeholder="paste host id here" style="flex:1;padding:8px;border-radius:6px;border:none;" />
+          <button id="useHostBtn" type="button">Use</button>
+        </div>
+      </div>
+      
+      <div class="control-group">
+        <label style="display: block; font-weight: 600; margin-bottom: 8px;">Connection Log:</label>
+        <div class="log">
+          <textarea id="log" readonly placeholder="Connection and messaging log..."></textarea>
+        </div>
+      </div>
+      
+      <div class="message-controls">
+        <input id="msg" type="text" placeholder="Message to host..." disabled />
+        <button id="send" type="button" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <div id="debugBanner" style="position:fixed;left:12px;bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.6);color:#fff;border-radius:6px;font-family:inherit;z-index:9999">Initializing...</div>
+  <script>
+    (function(){
+      const banner = document.getElementById('debugBanner')
+      function update() {
+        const sup = !!window.supabase
+        banner.textContent = `Supabase: ${sup ? 'loaded' : 'missing'} | App script: pending`
+        if (sup) {
+          clearInterval(iv)
+        }
+      }
+      const iv = setInterval(update, 300)
+      update()
+      window.addEventListener('load', () => {
+        banner.textContent = banner.textContent.replace('pending','loaded (page)')
+      })
+    })()
+  </script>
+  <script src="client.js"></script>
+</body>
+</html>

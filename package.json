@@ -1,0 +1,28 @@
+{
+  "name": "p2p-extract",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p .",
+    "start:signaling": "ts-node server/signaling-server.ts",
+    "start": "npm run start:signaling",
+    "cli": "ts-node src/cli.ts"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^9.0.9",
+    "@types/node": "^25.0.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0",
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "dotenv": "^17.2.3",
+    "inquirer": "^8.2.7",
+    "ora": "^5.4.1",
+    "table": "^6.9.0",
+    "wrtc": "^0.4.7",
+    "ws": "^8.13.0"
+  }
+}
