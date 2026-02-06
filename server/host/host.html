@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WebRTC Demo - Host</title>
+  <link rel="stylesheet" href="host.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -153,34 +154,47 @@
         </div>
 
         <div class="control-group">
-          <label style="display:block;font-weight:600;margin-bottom:8px;">Your ID</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <span id="myId" style="background:#fff;padding:6px 10px;border-radius:6px;color:#333;user-select:all">—</span>
+          <label class="label-block">Your ID</label>
+          <div class="flex-row">
+            <span id="myId" class="id-badge">—</span>
             <button id="copyId" type="button">Copy ID</button>
           </div>
         </div>
         
         <div class="control-group">
-          <label style="display: block; font-weight: 600; margin-bottom: 8px;">Connection Log:</label>
+          <label class="label-block">Encryption (Optional)</label>
+          <div class="flex-row mb8">
+            <input id="encryptSecret" type="password" placeholder="Enter shared secret..." class="input-bordered" />
+            <button id="setEncryptionSecret" type="button" class="btn-small">Set Secret</button>
+          </div>
+          <div class="flex-row">
+            <input id="encryptionToggle" type="checkbox" class="checkbox-lg" />
+            <label for="encryptionToggle" class="label-inline-flex">Enable message encryption</label>
+            <span id="encryptionStatus" class="encryption-status">OFF</span>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="label-block">Connection Log:</label>
           <div class="log">
             <textarea id="log" readonly placeholder="Connection and messaging log..."></textarea>
           </div>
         </div>
       </div>
       
-      <div class="panel">
+        <div class="panel">
         <h2>Connected Peers</h2>
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-          <h3 style="margin: 0;">Known Members</h3>
-          <button id="refreshMembers" type="button" style="padding: 8px 12px; font-size: 0.9rem; width: auto;">🔄 Refresh</button>
+        <div class="header-row">
+          <h3 class="no-margin">Known Members</h3>
+          <button id="refreshMembers" type="button" class="small-btn">🔄 Refresh</button>
         </div>
         <ul id="membersList" class="peer-list">
-          <li style="opacity: 0.5;">No members yet</li>
+          <li class="muted">No members yet</li>
         </ul>
 
-        <h3 style="margin-top:12px">Active Connections</h3>
+        <h3 class="mt12">Active Connections</h3>
         <ul id="peerList" class="peer-list">
-          <li style="opacity: 0.5;">Waiting for connections...</li>
+          <li class="muted">Waiting for connections...</li>
         </ul>
         
         <div class="message-controls">
@@ -192,7 +206,7 @@
   </div>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <div id="debugBanner" style="position:fixed;left:12px;bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.6);color:#fff;border-radius:6px;font-family:inherit;z-index:9999">Initializing...</div>
+  <div id="debugBanner">Initializing...</div>
   <script>
     (function(){
       const banner = document.getElementById('debugBanner')

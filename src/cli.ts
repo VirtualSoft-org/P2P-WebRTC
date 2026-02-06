@@ -15,6 +15,7 @@ import { getUserProfiles, getRoomMembersExcluding } from './user'
 import { initWebRTC, broadcast, onMessage, cleanup, connectToPeer } from './webrtc'
 import { listenForHostChanges } from './hostElection'
 import { transferHost } from './hostElection'
+import * as Crypto from './crypto/index'
 
 // ============= UI HELPERS =============
 
@@ -42,6 +43,8 @@ interface SessionState {
   role: string | null
   session?: any
   autoConnect: boolean
+  encryptionEnabled: boolean
+  encryptionSecret: string | null
 }
 
 let state: SessionState = {
@@ -54,12 +57,18 @@ let state: SessionState = {
   role: null,
   session: undefined,
   autoConnect: false,
+  encryptionEnabled: false,
+  encryptionSecret: null,
 }
 
 function printStatus() {
   const roleDisplay = state.roomId 
     ? (state.isHost ? chalk.yellow('🌟 Host') : chalk.cyan('👤 Client'))
     : chalk.gray('Not in room')
+  
+  const encryptionDisplay = state.encryptionEnabled 
+    ? chalk.green('🔒 Enabled') 
+    : chalk.gray('Disabled')
   
   const data = [
     [chalk.blue.bold('Property'), chalk.blue.bold('Value')],
@@ -69,6 +78,7 @@ function printStatus() {
     ['Connected', state.isConnected ? chalk.green('✓ Yes') : chalk.red('✗ No')],
     ['Role', roleDisplay],
     ['Peers Connected', chalk.magenta(state.peers.length.toString())],
+    ['Encryption', encryptionDisplay],
   ]
 
   console.log('\n' + table(data))
@@ -86,10 +96,12 @@ function printHelp() {
   6. Connect to Peers      - Connect to peers in room (Host only)
   7. Transfer Host Role    - Transfer host role to another user (Host only)
   8. Leave Room            - Disconnect from current room
-  9. Switch Account        - Sign in or register a different user
-  10. Exit                 - Close the application
+  9. Configure Encryption  - Set up optional end-to-end message encryption 🔒
+  10. Switch Account       - Sign in or register a different user
+  11. Exit                 - Close the application
   
   💡 Tip: Type "back" in any input field or select "← Back" in menus to cancel
+  💡 Tip: Use Configure Encryption (option 9) to enable E2E encryption for messages
   `)
   )
 }
@@ -332,15 +344,25 @@ async function initializeSession(): Promise<void> {
     if (authType === 'register') {
       const registerData = await promptForRegister()
       const spinner = ora({ text: 'Creating account...', color: 'cyan' }).start()
-      authResult = await registerUser(registerData)
-      spinner.succeed(chalk.green('Account created successfully!'))
+      try {
+        authResult = await registerUser(registerData)
+        spinner.succeed(chalk.green('Account created successfully!'))
+      } catch (err) {
+        spinner.fail(chalk.red('Account creation failed'))
+        throw err
+      }
     } else {
       const loginData = await promptForLogin()
       // Ensure we're signed out before attempting login
       await signOut()
       const spinner = ora({ text: 'Signing in...', color: 'cyan' }).start()
-      authResult = await loginUser(loginData)
-      spinner.succeed(chalk.green('Signed in successfully!'))
+      try {
+        authResult = await loginUser(loginData)
+        spinner.succeed(chalk.green('Signed in successfully!'))
+      } catch (err) {
+        spinner.fail(chalk.red('Sign in failed'))
+        throw err
+      }
     }
 
     // Use the session from auth result
@@ -501,7 +523,15 @@ async function handleCreateRoom(): Promise<void> {
 
       onMessage((msg: any, peerId: any) => {
         if (msg.type === 'chat') {
-          console.log(chalk.yellow(`\n📨 Message from ${peerId.substring(0, 8)}:`), chalk.white(msg.text))
+          // Decrypt if encryption is enabled
+          Crypto.decryptIfEnabled(msg.text).then((decryptedText) => {
+            if (decryptedText === null) {
+              console.log(chalk.red(`\n❌ Message from ${peerId.substring(0, 8)}: [decryption failed]`))
+              return
+            }
+            const indicator = state.encryptionEnabled ? '🔒' : ''
+            console.log(chalk.yellow(`\n📨 Message from ${peerId.substring(0, 8)}: ${indicator}`), chalk.white(decryptedText))
+          })
         }
       })
     } catch (error) {
@@ -586,7 +616,15 @@ async function handleConnectToRoom(): Promise<void> {
 
       onMessage((msg: any, peerId: any) => {
         if (msg.type === 'chat') {
-          console.log(chalk.yellow(`\n📨 Message from ${peerId.substring(0, 8)}:`), chalk.white(msg.text))
+          // Decrypt if encryption is enabled
+          Crypto.decryptIfEnabled(msg.text).then((decryptedText) => {
+            if (decryptedText === null) {
+              console.log(chalk.red(`\n❌ Message from ${peerId.substring(0, 8)}: [decryption failed]`))
+              return
+            }
+            const indicator = state.encryptionEnabled ? '🔒' : ''
+            console.log(chalk.yellow(`\n📨 Message from ${peerId.substring(0, 8)}: ${indicator}`), chalk.white(decryptedText))
+          })
         }
       })
     } catch (error) {
@@ -637,8 +675,12 @@ async function handleSendMessage(): Promise<void> {
     }
 
     try {
-      await broadcast({ type: 'chat', text: answer.message })
-      printSuccess('Message sent to all peers')
+      // Encrypt message if encryption is enabled
+      const messagePayload = await Crypto.encryptIfEnabled(answer.message)
+      const displayText = state.encryptionEnabled ? '[encrypted message]' : answer.message
+      
+      await broadcast({ type: 'chat', text: messagePayload })
+      printSuccess(`Message sent to all peers ${displayText.includes('[') ? '🔒' : ''}`)
     } catch (error) {
       printError(`${error instanceof Error ? error.message : String(error)}`)
     }
@@ -876,6 +918,109 @@ async function handleDisconnectFromRoom(): Promise<void> {
   }
 }
 
+async function handleConfigureEncryption(): Promise<void> {
+  try {
+    const answer = await inquirer.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: chalk.cyan('Encryption Configuration:'),
+        choices: [
+          {
+            name: state.encryptionSecret 
+              ? chalk.green('1. Change Secret') 
+              : chalk.yellow('1. Set Secret'),
+            value: 'setSecret',
+          },
+          {
+            name: `2. ${state.encryptionEnabled ? chalk.red('Disable') : chalk.green('Enable')} Encryption`,
+            value: 'toggleEncryption',
+          },
+          {
+            name: chalk.gray('3. Clear All'),
+            value: 'clear',
+          },
+          {
+            name: chalk.gray('← Back'),
+            value: 'back',
+          },
+        ],
+        prefix: chalk.magenta('?'),
+      },
+    ])
+
+    if (answer.action === 'back') {
+      return
+    }
+
+    if (answer.action === 'setSecret') {
+      const secretAnswer = await inquirer.prompt([
+        {
+          type: 'password',
+          name: 'secret',
+          message: chalk.cyan('Enter shared encryption secret:'),
+          mask: '*',
+          validate: (input) => {
+            if (input.trim().length === 0) {
+              return 'Secret cannot be empty'
+            }
+            if (input.length < 8) {
+              return 'Secret must be at least 8 characters'
+            }
+            return true
+          },
+          prefix: chalk.magenta('?'),
+        },
+      ])
+
+      Crypto.setEncryptionSecret(secretAnswer.secret)
+      state.encryptionSecret = secretAnswer.secret
+      printSuccess('Encryption secret set!')
+      console.log(chalk.gray('💡 Tip: Share this secret securely with other peers'))
+      return
+    }
+
+    if (answer.action === 'toggleEncryption') {
+      if (!state.encryptionSecret) {
+        printError('Please set a secret first')
+        return
+      }
+
+      state.encryptionEnabled = !state.encryptionEnabled
+      Crypto.setEncryptionEnabled(state.encryptionEnabled)
+      printSuccess(`Encryption ${state.encryptionEnabled ? 'enabled' : 'disabled'}`)
+      return
+    }
+
+    if (answer.action === 'clear') {
+      const confirmAnswer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirm',
+          message: chalk.yellow('Clear all encryption settings? This cannot be undone.'),
+          default: false,
+          prefix: chalk.magenta('?'),
+        },
+      ])
+
+      if (confirmAnswer.confirm) {
+        Crypto.clearEncryptionState()
+        state.encryptionEnabled = false
+        state.encryptionSecret = null
+        printSuccess('Encryption settings cleared')
+      } else {
+        printInfo('Clear cancelled')
+      }
+      return
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('User force closed')) {
+      return
+    }
+    printError(`Failed to configure encryption: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
 // ============= MAIN LOOP =============
 
 async function mainMenu(): Promise<void> {
@@ -926,11 +1071,15 @@ async function mainMenu(): Promise<void> {
             disabled: !state.isConnected ? chalk.gray('(Not connected)') : false,
           },
           {
-            name: chalk.red.bold('9. Switch Account'),
+            name: chalk.cyan('9. Configure Encryption'),
+            value: 'encryption',
+          },
+          {
+            name: chalk.red.bold('10. Switch Account'),
             value: 'switch',
           },
           {
-            name: chalk.yellow('10. Exit'),
+            name: chalk.yellow('11. Exit'),
             value: 'exit',
           },
         ],
@@ -962,6 +1111,9 @@ async function mainMenu(): Promise<void> {
         break
       case 'leave':
         await handleDisconnectFromRoom()
+        break
+      case 'encryption':
+        await handleConfigureEncryption()
         break
       case 'switch':
         await switchAccount()

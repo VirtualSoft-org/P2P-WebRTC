@@ -1,10 +1,17 @@
 export {};
+import * as Crypto from '../../src/crypto/index';
+
 const sigInput = document.getElementById('sig') as HTMLInputElement;
 const connectBtn = document.getElementById('connect') as HTMLButtonElement;
 const log = document.getElementById('log') as HTMLTextAreaElement;
 const msgInput = document.getElementById('msg') as HTMLInputElement;
 const sendBtn = document.getElementById('send') as HTMLButtonElement;
 const videoElement = document.getElementById('video') as HTMLVideoElement;
+const encryptSecretInput = document.getElementById('encryptSecret') as HTMLInputElement;
+const setEncryptionSecretBtn = document.getElementById('setEncryptionSecret') as HTMLButtonElement;
+const encryptionToggle = document.getElementById('encryptionToggle') as HTMLInputElement;
+const encryptionStatus = document.getElementById('encryptionStatus') as HTMLSpanElement;
+
 const pcConfig: RTCConfiguration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
 let ws: WebSocket | null = null;
@@ -23,6 +30,32 @@ function appendLog(s: string): void {
   log.value += s + '\n';
   log.scrollTop = log.scrollHeight;
 }
+
+// Encryption controls
+setEncryptionSecretBtn.onclick = () => {
+  const secret = encryptSecretInput.value.trim();
+  if (!secret) {
+    alert('Please enter a secret');
+    return;
+  }
+  Crypto.setEncryptionSecret(secret);
+  appendLog('[Encryption] Secret set');
+  encryptSecretInput.value = '';
+};
+
+encryptionToggle.onchange = () => {
+  const enabled = encryptionToggle.checked;
+  if (enabled && !Crypto.getEncryptionSecret()) {
+    alert('Please set a secret first');
+    encryptionToggle.checked = false;
+    return;
+  }
+  Crypto.setEncryptionEnabled(enabled);
+  encryptionStatus.textContent = enabled ? 'ON' : 'OFF';
+  encryptionStatus.style.background = enabled ? '#e8f5e9' : '#ffe0e0';
+  encryptionStatus.style.color = enabled ? '#2e7d32' : '#d32f2f';
+  appendLog(`[Encryption] ${enabled ? 'Enabled' : 'Disabled'}`);
+};
 
 connectBtn.onclick = async () => {
   if (ws) ws.close();
@@ -59,13 +92,24 @@ async function createOffer(): Promise<void> {
     setupVideoSync();
   };
   channel.onmessage = (m: MessageEvent) => {
-    handleSyncMessage(m.data);
+    handleChannelMessage(m.data as string);
   };
 
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
   if (ws) ws.send(JSON.stringify({ type: 'offer', from: id, to: 'host', data: pc.localDescription }));
   appendLog('Sent offer to host');
+}
+
+async function handleChannelMessage(rawData: string): Promise<void> {
+  // Decrypt if encryption is enabled
+  const data = await Crypto.decryptIfEnabled(rawData);
+  if (data === null) {
+    // Decryption failed, message dropped silently
+    return;
+  }
+  
+  handleSyncMessage(data);
 }
 function handleSyncMessage(data: string): void {
   try {
@@ -147,7 +191,12 @@ function setupVideoSync(): void {
 sendBtn.onclick = () => {
   const text = msgInput.value.trim();
   if (!text || !channel || channel.readyState !== 'open') return;
-  channel.send(text);
-  appendLog('[me] ' + text);
-  msgInput.value = '';
+  
+  // Encrypt and send
+  Crypto.encryptIfEnabled(text).then((encrypted) => {
+    channel!.send(encrypted);
+    const displayText = Crypto.isEncryptionEnabled() ? '[encrypted]' : text;
+    appendLog('[me] ' + displayText);
+    msgInput.value = '';
+  });
 };

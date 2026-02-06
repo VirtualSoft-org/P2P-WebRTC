@@ -49,3 +49,4 @@ ehthumbs.db
 *.key
 .http-server-pid
 Test.exe
+src/crypto/README.md

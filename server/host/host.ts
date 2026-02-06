@@ -1,4 +1,6 @@
 export {};
+import * as Crypto from '../../src/crypto/index';
+
 const sigInput = document.getElementById('sig') as HTMLInputElement;
 const connectBtn = document.getElementById('connect') as HTMLButtonElement;
 const peerList = document.getElementById('peerList') as HTMLUListElement;
@@ -8,6 +10,10 @@ const sendBtn = document.getElementById('send') as HTMLButtonElement;
 const videoElement = document.getElementById('video') as HTMLVideoElement;
 const videoUrlInput = document.getElementById('videoUrl') as HTMLInputElement;
 const loadVideoBtn = document.getElementById('loadVideo') as HTMLButtonElement;
+const encryptSecretInput = document.getElementById('encryptSecret') as HTMLInputElement;
+const setEncryptionSecretBtn = document.getElementById('setEncryptionSecret') as HTMLButtonElement;
+const encryptionToggle = document.getElementById('encryptionToggle') as HTMLInputElement;
+const encryptionStatus = document.getElementById('encryptionStatus') as HTMLSpanElement;
 
 const pcConfig: RTCConfiguration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
@@ -27,6 +33,32 @@ function appendLog(s: string): void {
   log.value += s + '\n';
   log.scrollTop = log.scrollHeight;
 }
+
+// Encryption controls
+setEncryptionSecretBtn.onclick = () => {
+  const secret = encryptSecretInput.value.trim();
+  if (!secret) {
+    alert('Please enter a secret');
+    return;
+  }
+  Crypto.setEncryptionSecret(secret);
+  appendLog('[Encryption] Secret set');
+  encryptSecretInput.value = '';
+};
+
+encryptionToggle.onchange = () => {
+  const enabled = encryptionToggle.checked;
+  if (enabled && !Crypto.getEncryptionSecret()) {
+    alert('Please set a secret first');
+    encryptionToggle.checked = false;
+    return;
+  }
+  Crypto.setEncryptionEnabled(enabled);
+  encryptionStatus.textContent = enabled ? 'ON' : 'OFF';
+  encryptionStatus.style.background = enabled ? '#e8f5e9' : '#ffe0e0';
+  encryptionStatus.style.color = enabled ? '#2e7d32' : '#d32f2f';
+  appendLog(`[Encryption] ${enabled ? 'Enabled' : 'Disabled'}`);
+};
 
 connectBtn.onclick = () => {
   if (ws) ws.close();
@@ -52,6 +84,25 @@ connectBtn.onclick = () => {
   };
 };
 
+async function handleChannelMessage(peerId: string, rawData: string): Promise<void> {
+  // Decrypt if encryption is enabled
+  const data = await Crypto.decryptIfEnabled(rawData);
+  if (data === null) {
+    // Decryption failed, message dropped silently
+    return;
+  }
+
+  // Try to parse as sync message
+  try {
+    const msg = JSON.parse(data);
+    if (msg.type && !['play', 'pause', 'seek', 'sync', 'videoUrl', 'initialState'].includes(msg.type)) {
+      appendLog(`From ${peerId}: ${data}`);
+    }
+  } catch (e) {
+    appendLog(`From ${peerId}: ${data}`);
+  }
+}
+
 async function handleOffer(id: string, offer: any): Promise<void> {
   const pc = new RTCPeerConnection(pcConfig);
   peers.set(id, { pc, channel: null });
@@ -68,14 +119,7 @@ async function handleOffer(id: string, offer: any): Promise<void> {
       sendInitialState(id, channel);
     };
     channel.onmessage = (m: MessageEvent) => {
-      try {
-        const msg = JSON.parse(m.data);
-        if (msg.type && !['play', 'pause', 'seek', 'sync'].includes(msg.type)) {
-          appendLog(`From ${id}: ${m.data}`);
-        }
-      } catch (e) {
-        appendLog(`From ${id}: ${m.data}`);
-      }
+      handleChannelMessage(id, m.data as string);
     };
     const entry = peers.get(id) || { pc, channel: null };
     entry.channel = channel;
@@ -118,7 +162,9 @@ function broadcastSyncCommand(message: SyncMessage): void {
   const jsonMessage = JSON.stringify(message);
   for (const [, p] of peers.entries()) {
     if (p.channel && p.channel.readyState === 'open') {
-      p.channel.send(jsonMessage);
+      Crypto.encryptIfEnabled(jsonMessage).then((encrypted) => {
+        p.channel!.send(encrypted);
+      });
     }
   }
 }
@@ -133,7 +179,9 @@ function sendInitialState(clientId: string, channel: RTCDataChannel): void {
     videoUrl: videoElement.src || undefined
   };
   
-  channel.send(JSON.stringify(initialState));
+  Crypto.encryptIfEnabled(JSON.stringify(initialState)).then((encrypted) => {
+    channel.send(encrypted);
+  });
   appendLog(`Sent initial state to ${clientId}`);
 }
 
@@ -188,9 +236,14 @@ if (videoElement) {
 sendBtn.onclick = () => {
   const text = msgInput.value.trim();
   if (!text) return;
-  appendLog('[host] ' + text);
+  const displayText = Crypto.isEncryptionEnabled() ? '[encrypted]' : text;
+  appendLog('[host] ' + displayText);
   for (const [, p] of peers.entries()) {
-    if (p.channel && p.channel.readyState === 'open') p.channel.send(`[host] ${text}`);
+    if (p.channel && p.channel.readyState === 'open') {
+      Crypto.encryptIfEnabled(`[host] ${text}`).then((encrypted) => {
+        p.channel!.send(encrypted);
+      });
+    }
   }
   msgInput.value = '';
 };

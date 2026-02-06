@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>WebRTC Demo - Client</title>
+  <link rel="stylesheet" href="client.css">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
@@ -151,23 +152,36 @@
       </div>
 
       <div class="control-group">
-        <label style="display:block;font-weight:600;margin-bottom:8px;">Your ID</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span id="myId" style="background:#fff;padding:6px 10px;border-radius:6px;color:#333;user-select:all">—</span>
+        <label class="label-block">Your ID</label>
+        <div class="flex-row">
+          <span id="myId" class="id-badge">—</span>
           <button id="copyId" type="button">Copy ID</button>
         </div>
       </div>
 
       <div class="control-group">
-        <label style="display:block;font-weight:600;margin-bottom:8px;">Host ID (paste or leave blank to auto-pick)</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="hostIdInput" placeholder="paste host id here" style="flex:1;padding:8px;border-radius:6px;border:none;" />
+        <label class="label-block">Host ID (paste or leave blank to auto-pick)</label>
+        <div class="flex-row">
+          <input id="hostIdInput" placeholder="paste host id here" class="flex-input" />
           <button id="useHostBtn" type="button">Use</button>
         </div>
       </div>
       
       <div class="control-group">
-        <label style="display: block; font-weight: 600; margin-bottom: 8px;">Connection Log:</label>
+        <label class="label-block">Encryption (Optional)</label>
+        <div class="flex-row mb8">
+          <input id="encryptSecret" type="password" placeholder="Enter shared secret..." class="input-bordered" />
+          <button id="setEncryptionSecret" type="button" class="btn-small">Set Secret</button>
+        </div>
+        <div class="flex-row">
+          <input id="encryptionToggle" type="checkbox" class="checkbox-lg" />
+          <label for="encryptionToggle" class="label-inline-flex">Enable message encryption</label>
+          <span id="encryptionStatus" class="encryption-status">OFF</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="label-block">Connection Log:</label>
         <div class="log">
           <textarea id="log" readonly placeholder="Connection and messaging log..."></textarea>
         </div>
@@ -181,7 +195,7 @@
   </div>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <div id="debugBanner" style="position:fixed;left:12px;bottom:12px;padding:8px 12px;background:rgba(0,0,0,0.6);color:#fff;border-radius:6px;font-family:inherit;z-index:9999">Initializing...</div>
+  <div id="debugBanner">Initializing...</div>
   <script>
     (function(){
       const banner = document.getElementById('debugBanner')
