@@ -101,12 +101,7 @@ create table room_members (
    npm install
    ```
 
-3. **Configure environment**
-   - Set up Supabase credentials
-   - Configure the signaling server connection details
-   - Set up encryption keys and KDF parameters
-
-4. **Run the CLI**
+3. **Run the CLI**
    ```bash
    npm run cli
    ```
@@ -196,3 +191,4 @@ For more details, see the [LICENSE](LICENSE) file.
 ## Support
 
 For issues, questions, or suggestions, please open an issue on the repository.
+
