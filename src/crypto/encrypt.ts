@@ -10,7 +10,7 @@
  * }
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers-sumo';
 import { deriveKey } from './kdf';
 
 export interface EncryptedMessage {

@@ -4,7 +4,7 @@
  * Silent failure on authentication failure (message dropped).
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers-sumo';
 import { deriveKey } from './kdf';
 import { EncryptedMessage } from './encrypt';
 

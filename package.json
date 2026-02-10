@@ -20,7 +20,7 @@
     "commander": "^11.1.0",
     "dotenv": "^17.2.3",
     "inquirer": "^8.2.7",
-    "libsodium-wrappers": "^0.8.2",
+    "libsodium-wrappers-sumo": "^0.8.2",
     "ora": "^5.4.1",
     "table": "^6.9.0",
     "wrtc": "^0.4.7",

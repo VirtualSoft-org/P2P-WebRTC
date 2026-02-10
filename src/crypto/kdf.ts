@@ -9,7 +9,7 @@
  * - output: 32 bytes (256-bit key for XChaCha20-Poly1305)
  */
 
-import * as sodium from 'libsodium-wrappers';
+import sodium from 'libsodium-wrappers-sumo';
 
 /**
  * Generate random bytes (works in Node.js and browser)
